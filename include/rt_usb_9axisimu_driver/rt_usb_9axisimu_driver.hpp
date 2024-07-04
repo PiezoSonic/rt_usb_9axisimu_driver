@@ -53,6 +53,7 @@ private:
   double angular_velocity_stddev_;
   double magnetic_field_stddev_;
   rt_usb_9axisimu::Consts consts;
+  rt_usb_9axisimu::ImuData<double> bias_; 
 
   enum DataFormat
   {
@@ -66,6 +67,7 @@ private:
   bool has_completed_format_check_;
   DataFormat data_format_;
   bool has_refreshed_imu_data_;
+  bool has_caliburated_ = false;
 
   // Method to combine two separate one-byte data into one two-byte data
   int16_t combineByteData(unsigned char data_h, unsigned char data_l);
@@ -91,7 +93,8 @@ public:
   bool hasAsciiDataFormat(void);
   bool hasBinaryDataFormat(void);
   bool hasRefreshedImuData(void);
-
+  bool hasCaliburated(void);
+  bool caliburation();
   bool publishImuData();
   bool readSensorData();
 };

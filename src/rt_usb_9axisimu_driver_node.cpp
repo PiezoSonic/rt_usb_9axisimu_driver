@@ -90,7 +90,14 @@ int main(int argc, char** argv)
         {
           if (driver.hasRefreshedImuData())
           {
-            driver.publishImuData();
+            if (driver.hasCaliburated()){
+              driver.publishImuData();
+            }
+            else
+            {
+              driver.caliburation();
+            }
+            
           }
         }
         else

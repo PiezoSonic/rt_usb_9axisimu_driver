@@ -107,7 +107,6 @@ bool RtUsb9axisimuRosDriver::readBinaryData(void)
   }
 
   imu_rawdata = extractBinarySensorData(imu_data_buf);  // Extract sensor data
-
   sensor_data_.setImuRawData(imu_rawdata);  // Update raw data
   sensor_data_.convertRawDataUnit();        // Convert raw data to physical quantity
   has_refreshed_imu_data_ = true;
@@ -277,6 +276,51 @@ bool RtUsb9axisimuRosDriver::hasRefreshedImuData(void)
   return has_refreshed_imu_data_;
 }
 
+bool RtUsb9axisimuRosDriver::hasCaliburated(void)
+{
+  return has_caliburated_;
+}
+
+bool RtUsb9axisimuRosDriver::caliburation()
+{
+  rt_usb_9axisimu::ImuData<double> imu;
+  rt_usb_9axisimu::ImuData<double> sum;
+  sum.reset();
+
+  const int num_samples = 1000;
+
+  for (int i = 0; i < num_samples; ++i)
+  {
+    imu = sensor_data_.getImuData(); 
+
+    sum.ax += imu.ax;
+    sum.ay += imu.ay;
+    sum.az += imu.az;
+    sum.gx += imu.gx;
+    sum.gy += imu.gy;
+    sum.gz += imu.gz;
+    sum.mx += imu.mx;
+    sum.my += imu.my;
+    sum.mz += imu.mz;
+    sum.temperature += imu.temperature;
+  
+  }
+
+  bias_.ax = sum.ax / num_samples;
+  bias_.ay = sum.ay / num_samples;
+  bias_.az = sum.az / num_samples;
+  bias_.gx = sum.gx / num_samples;
+  bias_.gy = sum.gy / num_samples;
+  bias_.gz = sum.gz / num_samples;
+  bias_.mx = sum.mx / num_samples;
+  bias_.my = sum.my / num_samples;
+  bias_.mz = sum.mz / num_samples;
+  bias_.temperature = sum.temperature / num_samples;
+
+  has_caliburated_ = true;
+}
+
+
 bool RtUsb9axisimuRosDriver::publishImuData()
 {
   rt_usb_9axisimu::ImuData<double> imu;
@@ -312,23 +356,23 @@ bool RtUsb9axisimuRosDriver::publishImuData()
   imu_data_raw_msg.header.frame_id = imu_magnetic_msg.header.frame_id = frame_id_;
 
   // original data used the g unit, convert to m/s^2
-  imu_data_raw_msg.linear_acceleration.x = imu.ax * consts.CONVERTOR_G2A;
-  imu_data_raw_msg.linear_acceleration.y = imu.ay * consts.CONVERTOR_G2A;
-  imu_data_raw_msg.linear_acceleration.z = imu.az * consts.CONVERTOR_G2A;
+  imu_data_raw_msg.linear_acceleration.x = (imu.ax - bias_.ax) * consts.CONVERTOR_G2A;
+  imu_data_raw_msg.linear_acceleration.y = (imu.ay - bias_.ay) * consts.CONVERTOR_G2A;
+  imu_data_raw_msg.linear_acceleration.z = (imu.az - bias_.az) * consts.CONVERTOR_G2A;
 
   if (data_format_ == DataFormat::BINARY)
   {
     // original binary data used the degree/s unit, convert to radian/s
-    imu_data_raw_msg.angular_velocity.x = imu.gx * consts.CONVERTOR_D2R;
-    imu_data_raw_msg.angular_velocity.y = imu.gy * consts.CONVERTOR_D2R;
-    imu_data_raw_msg.angular_velocity.z = imu.gz * consts.CONVERTOR_D2R;
+    imu_data_raw_msg.angular_velocity.x = (imu.gx - bias_.gx) * consts.CONVERTOR_D2R;
+    imu_data_raw_msg.angular_velocity.y = (imu.gy - bias_.gy) * consts.CONVERTOR_D2R;
+    imu_data_raw_msg.angular_velocity.z = (imu.gz - bias_.gz) * consts.CONVERTOR_D2R;
   }
   else if (data_format_ == DataFormat::ASCII)
   {
     // original ascii data used the radian/s
-    imu_data_raw_msg.angular_velocity.x = imu.gx;
-    imu_data_raw_msg.angular_velocity.y = imu.gy;
-    imu_data_raw_msg.angular_velocity.z = imu.gz;
+    imu_data_raw_msg.angular_velocity.x = (imu.gx - bias_.gx);
+    imu_data_raw_msg.angular_velocity.y = (imu.gy - bias_.gy);
+    imu_data_raw_msg.angular_velocity.z = (imu.gz - bias_.gz);
   }
 
   // original data used the uTesla unit, convert to Tesla
